@@ -1,0 +1,57 @@
+name: CI/CD Pipeline & Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Build & Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Monorepo Dependencies
+        run: npm run install:all
+
+      - name: Build Frontend Assets
+        run: npm --prefix frontend run build
+
+      - name: Run Backend Unit Tests
+        run: node backend/test-auth-bookmarks.js
+
+  deploy:
+    name: Deploy Application & Observability
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Remote GCP VM via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        if: env.SERVER_HOST != ''
+        env:
+          SERVER_HOST: ${{ secrets.GCP_SERVER_IP }}
+        with:
+          host: ${{ secrets.GCP_SERVER_IP }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ~/News-Aggregator-Web-Application
+            git pull origin main
+            sudo docker compose down || true
+            sudo docker compose up -d --build

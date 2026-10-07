@@ -21,6 +21,7 @@ import {
 
 import express from 'express';
 import cors from 'cors';
+import client from 'prom-client';
 import authRoutes from './routes/auth.js';
 import bookmarkRoutes from './routes/bookmarks.js';
 
@@ -34,8 +35,39 @@ if (!process.env.MONGODB_URI) {
   console.warn('⚠️ Please create a .env file with MONGODB_URI=<your MongoDB Atlas connection string> for production.');
 }
 
+// Prometheus Metrics Instrumentation
+const register = new client.Registry();
+register.setDefaultLabels({ app: 'news-aggregator-backend' });
+client.collectDefaultMetrics({ register });
+
+const httpRequestDurationSeconds = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'code'],
+  buckets: [0.1, 0.3, 0.5, 1, 3, 5]
+});
+register.registerMetric(httpRequestDurationSeconds);
+
+app.use((req, res, next) => {
+  const end = httpRequestDurationSeconds.startTimer();
+  res.on('finish', () => {
+    end({ method: req.method, route: req.route ? req.route.path : req.path, code: res.statusCode });
+  });
+  next();
+});
+
 app.use(cors());
 app.use(express.json());
+
+// Prometheus Metrics Route
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (err) {
+    res.status(500).end(err);
+  }
+});
 
 // Auth & Bookmark routes
 app.use('/api/auth', authRoutes);
