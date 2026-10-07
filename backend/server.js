@@ -27,7 +27,7 @@ import bookmarkRoutes from './routes/bookmarks.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/todays-news';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://sarthakwaghere23_db_user:Sarthak29@newsaggregator.fjamluq.mongodb.net/news-aggregator?retryWrites=true&w=majority';
 
 if (!process.env.MONGODB_URI) {
   console.warn('⚠️ WARNING: MONGODB_URI environment variable is missing in .env!');
