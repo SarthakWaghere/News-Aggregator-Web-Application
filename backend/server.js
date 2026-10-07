@@ -27,12 +27,10 @@ import bookmarkRoutes from './routes/bookmarks.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://sarthakwaghere23_db_user:Sarthak29@newsaggregator.fjamluq.mongodb.net/news-aggregator?retryWrites=true&w=majority';
 
-if (!process.env.MONGODB_URI) {
-  console.warn('⚠️ WARNING: MONGODB_URI environment variable is missing in .env!');
-  console.warn('⚠️ Attempting fallback to local MongoDB (mongodb://127.0.0.1:27017/todays-news).');
-  console.warn('⚠️ Please create a .env file with MONGODB_URI=<your MongoDB Atlas connection string> for production.');
+let MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI || (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://'))) {
+  MONGODB_URI = 'mongodb+srv://sarthakwaghere23_db_user:Sarthak29@newsaggregator.fjamluq.mongodb.net/news-aggregator?retryWrites=true&w=majority';
 }
 
 // Prometheus Metrics Instrumentation
@@ -211,20 +209,21 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
-// Connect to MongoDB Atlas first, then start Express Server
-console.log('Connecting to MongoDB Atlas...');
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('Successfully connected to MongoDB Atlas');
-    app.listen(PORT, () => {
-      console.log(`Server listening on port ${PORT}`);
-      
-      // Proactively run the first synchronization on start
-      console.log('Performing initial sync...');
+// Start Express Server immediately on 0.0.0.0
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on 0.0.0.0:${PORT}`);
+  
+  // Connect to MongoDB Atlas
+  console.log('Connecting to MongoDB Atlas...');
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('Successfully connected to MongoDB Atlas');
+      // Proactively run the initial RSS feed synchronization on boot
+      console.log('Performing initial RSS feed sync...');
       syncFeeds();
+    })
+    .catch(err => {
+      console.error('⚠️ Warning: MongoDB Atlas connection failed:', err.message);
+      console.error('⚠️ Please verify Network Access (IP Whitelist 0.0.0.0/0) in MongoDB Atlas Dashboard.');
     });
-  })
-  .catch(err => {
-    console.error('CRITICAL: Database connection failed. Server shutting down...', err.message);
-    process.exit(1);
-  });
+});
